@@ -1,0 +1,118 @@
+from aiogram import Bot, Dispatcher, types
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, Message
+import asyncio
+
+TOKEN = "8511153040:AAFRLGT9UErVxCLLIlgSjq5qTCTEymf7j5M"   # вставь токен
+
+bot = Bot(token=TOKEN)
+dp = Dispatcher()
+
+user_data = {}
+
+def main_keyboard():
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="ℹ️ Информация о боте", callback_data="info")],
+            [InlineKeyboardButton(text="🚀 Приступить к заданиям", callback_data="tasks_menu")]
+        ]
+    )
+
+def tasks_keyboard():
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="🟢 Лёгкие задания", callback_data="level_easy")],
+            [InlineKeyboardButton(text="🟡 Средние задания", callback_data="level_medium")],
+            [InlineKeyboardButton(text="🔴 Сложные задания", callback_data="level_hard")],
+            [InlineKeyboardButton(text="⬅️ Назад", callback_data="back_to_menu")]
+        ]
+    )
+
+def back_button():
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="⬅️ Назад", callback_data="back_to_menu")]
+        ]
+    )
+
+TASKS = {
+    "easy": {"question": "Сколько будет 2 + 2?", "answer": "4"},
+    "medium": {"question": "Как называется язык, на котором написан этот бот?", "answer": "python"},
+    "hard": {"question": "Сколько букв в слове 'калибр'?", "answer": "6"}
+}
+
+@dp.message()
+async def start(message: Message):
+    user_id = message.from_user.id
+    if user_id not in user_data:
+        user_data[user_id] = {"points": 0, "level": None}
+    await message.answer(
+        "👋 Добро пожаловать в *55caliber Bot*!\nВыбери действие:",
+        reply_markup=main_keyboard(),
+        parse_mode="Markdown"
+    )
+
+@dp.callback_query(lambda c: c.data == "info")
+async def info_handler(callback: types.CallbackQuery):
+    await callback.message.answer(
+        "📌 *55caliber — инфа о боте*\n\nНу типа инфа о боте.",
+        reply_markup=back_button(),
+        parse_mode="Markdown"
+    )
+    await callback.answer()
+
+@dp.callback_query(lambda c: c.data == "tasks_menu")
+async def tasks_menu(callback: types.CallbackQuery):
+    await callback.message.answer("🔥 Выбери уровень заданий:", reply_markup=tasks_keyboard())
+    await callback.answer()
+
+@dp.callback_query(lambda c: c.data.startswith("level_"))
+async def choose_level(callback: types.CallbackQuery):
+    user_id = callback.from_user.id
+    level = callback.data.split("_")[1]
+    user_data[user_id]["level"] = level
+    question = TASKS[level]["question"]
+
+    await callback.message.answer(
+        f"📝 *Задание ({level}):*\n\n{question}\n\nНапиши ответ сообщением:",
+        parse_mode="Markdown"
+    )
+    await callback.answer()
+
+@dp.message()
+async def answer_handler(message: Message):
+    user_id = message.from_user.id
+    if user_id not in user_data:
+        return
+
+    level = user_data[user_id].get("level")
+    if not level:
+        await message.answer("Выбери уровень заданий!", reply_markup=tasks_keyboard())
+        return
+
+    correct_answer = TASKS[level]["answer"].lower().strip()
+    user_answer = message.text.lower().strip()
+
+    if user_answer == correct_answer:
+        user_data[user_id]["points"] += 10
+        await message.answer(
+            f"✅ Правильно!\nБаллы: *{user_data[user_id]['points']}*",
+            parse_mode="Markdown",
+            reply_markup=tasks_keyboard()
+        )
+    else:
+        await message.answer(
+            f"❌ Неправильно. Правильный ответ: *{correct_answer}*",
+            parse_mode="Markdown",
+            reply_markup=tasks_keyboard()
+        )
+
+@dp.callback_query(lambda c: c.data == "back_to_menu")
+async def back(callback: types.CallbackQuery):
+    await callback.message.answer("Главное меню:", reply_markup=main_keyboard())
+    await callback.answer()
+
+async def main():
+    await dp.start_polling(bot)
+
+if __name__ == "__main__":
+    asyncio.run(main())
